@@ -1,0 +1,19 @@
+{
+   "clients": 
+   [
+        {
+            "name": "Apptitude",
+            "apiKey": $CLIENT_APIKEY,                         
+            "secretKey": $CLIENT_SECRET_KEY
+        },
+        {
+            "name": "edel-for-life-sa",
+            "apiKey": $CLIENT_APIKEY,                         
+            "secretKey": $CLIENT_SECRET_KEY
+        }
+    ],
+    "mailgun": {
+        "secretKey": "YOUR_SECRET_KEY",
+        "domain": "YOUR_MAILGUN_DOMAIN"
+    }
+}
