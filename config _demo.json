@@ -14,6 +14,8 @@
     ],
     "mailgun": {
         "secretKey": "YOUR_SECRET_KEY",
-        "domain": "YOUR_MAILGUN_DOMAIN"
+        "domain": "YOUR_MAILGUN_DOMAIN",
+        "notification_mail_from" : "backup-notification@YOURDOMAIN.com",
+        "notification_mail_to" : "backup@YOURDOMAIN.com"
     }
 }

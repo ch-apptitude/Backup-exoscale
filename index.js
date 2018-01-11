@@ -80,8 +80,8 @@ function sendResultsByEmail(results,customer, type){
     }
 
     var data = {
-        from: 'Cron snapshots <backup-notification@apptitude.ch>',
-        to: 'backup@apptitude.ch',
+        from: 'Cron snapshots <'+config.mailgun.notification_mail_from+'>',
+        to: config.mailgun.notification_mail_to,
         subject: 'Snapshot Cron finished: '+customer.name,
         text: text
       };
