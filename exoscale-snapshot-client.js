@@ -14,7 +14,7 @@ class ExoscaleSnapshotClient extends CloudStackClient {
 	constructor(options,customer) {
         super(options);
         this.customer = customer;
-        this.exclude = ["apptitude-test"];
+        this.exclude = ["apptitude-test", "backup-manager"];
         this.keepSnapshots = 5;
         this.snapshots = [];
         this.volumes = [];
@@ -126,9 +126,14 @@ class ExoscaleSnapshotClient extends CloudStackClient {
     }
     
     listVolumes(success){
-        this.execute('listVolumes', {response:"json"}, (err, response) => {              
-                response = response.listvolumesresponse;
-                this.volumes = response.volume
+        this.execute('listVolumes', {response:"json"}, (err, response) => {
+                if(err){
+                    return this.handleError(err)
+                }
+                if(response){
+                    response = response.listvolumesresponse;
+                    this.volumes = response.volume
+                }
                 success()
         })
     }
