@@ -51,9 +51,10 @@ class ExoscaleSnapshotClient extends CloudStackClient {
 
     cleanAll(success) {
         // Force delete all volumes without snapshotable tag
-        this.deleteSnapshots(false, success)
-        // Delete all snapshots with snapshotable tag and limit of keepSnapshots
-        this.deleteSnapshots(true, success)
+        this.deleteSnapshots(false, () => {
+            // Delete all snapshots with snapshotable tag and limit of keepSnapshots
+            this.deleteSnapshots(true, success)
+        })
     }
     
     deleteSnapshots(isSnapshotable, success){
