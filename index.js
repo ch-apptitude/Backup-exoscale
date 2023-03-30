@@ -17,7 +17,7 @@ const clients = config.clients
 
 console.log("start snapshots cron")
 
-cron.schedule('* 3 * * 1', () => {
+cron.schedule('0 8 * * *', () => {
     clients.forEach(function(client) {
         let options = {
             apiKey: client.apiKey,
@@ -44,7 +44,7 @@ cron.schedule('* 3 * * 1', () => {
     }, this);
 });
 
-cron.schedule('* 4 * * 1', () => {
+cron.schedule('0 9 * * *', () => {
     clients.forEach(function(client) {
         let options = {
             apiKey: client.apiKey,
