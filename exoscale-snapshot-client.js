@@ -14,9 +14,9 @@ class ExoscaleSnapshotClient extends CloudStackClient {
 	constructor(options,customer) {
         super(options);
         this.customer = customer;
-        this.exclude = ["apptitude-test", "backup-manager"];
-        this.keepSnapshots = 5;
+        this.keepSnapshots = 1;
         this.snapshots = [];
+        this.virtualMachines = [];
         this.volumes = [];
         this.logs = []
         this.logs[this.customer.name] = [];
@@ -24,7 +24,7 @@ class ExoscaleSnapshotClient extends CloudStackClient {
     
     executeSnapShots(){
         return new Promise((success, reject) => {
-                this.snapshotsAllVolume(() => {
+                this.snapshotSnapshotableVolumes(() => {
                     let result = {
                         customer: this.customer,
                         logs: this.logs
@@ -50,9 +50,23 @@ class ExoscaleSnapshotClient extends CloudStackClient {
 
 
     cleanAll(success) {
-        this.listVolumes(() => {
-            this.listSnapshots(() => {
-                this.cleanSnapShots(success)
+        // Force delete all volumes without snapshotable tag
+        this.deleteSnapshots(false, () => {
+            // Delete all snapshots with snapshotable tag and limit of keepSnapshots
+            this.deleteSnapshots(true, success)
+        })
+    }
+    
+    deleteSnapshots(isSnapshotable, success){
+        this.listVirtualMachines(() => {
+            this.filterVirtualMachinesByIsSnapshotable(isSnapshotable,() => { // If isSnapshotable is true, we only filter virtual machines with snapshotable tag
+                this.listVolumes(() => {
+                    this.filterVolumesByIsSnapshotableVirtualMachineAssociated(() => {
+                        this.listSnapshots(() => {
+                            this.cleanSnapShots(!isSnapshotable, success) // We force delete all when isSnapshotable is false
+                        })
+                    })
+                })
             })
         })
     }
@@ -64,7 +78,47 @@ class ExoscaleSnapshotClient extends CloudStackClient {
             })
         })
     }
-    
+
+    snapshotSnapshotableVolumes(success){
+        this.listVirtualMachines(() => {
+            this.filterVirtualMachinesByIsSnapshotable(true,() => {
+                this.listVolumes(() => {
+                    this.filterVolumesByIsSnapshotableVirtualMachineAssociated(() => {
+                        this.listSnapshots(() => {
+                            this.createSnapshots(success)
+                        })
+                    })
+                })
+            })
+        })
+    }
+
+    filterVirtualMachinesByIsSnapshotable(isSnapshotable, success){
+        this.virtualMachines = this.virtualMachines
+            .filter((virtualMachine) => {
+                if (isSnapshotable) {
+                    return virtualMachine.tags.some((tag) => {
+                        return tag.key === 'snapshotable' && tag.value !== 'false' && tag.value !== '0'
+                    })
+                } else {  // Doesn't have snapshotable tag or is false
+                    return !virtualMachine.tags.some((tag) => {
+                        return tag.key === 'snapshotable' && tag.value !== 'false' && tag.value !== '0'
+                    })
+                }
+            })
+        success()
+    }
+
+    filterVolumesByIsSnapshotableVirtualMachineAssociated(success){
+        this.volumes = this.volumes
+            .filter((volume) => {
+                return this.virtualMachines.some((virtualMachine) => {
+                    return virtualMachine.id === volume.virtualmachineid
+                })
+            })
+        success()
+    }
+
     createSnapshot(volume){
         return new Promise((resolve,reject) => {
             this.execute('createSnapshot', {response:"json", volumeid:volume.id}, (err, response) => {
@@ -84,18 +138,18 @@ class ExoscaleSnapshotClient extends CloudStackClient {
         })
     }
 
-    cleanSnapshotForVolume(volume){
+    cleanSnapshotForVolume(volume,forceDeleteAll){
         return new Promise((resolve,reject) => {
             this.execute('listSnapshots', {response:"json", volumeid:volume.id}, (err, response) => {
                     if(response != undefined){
                         response = response.listsnapshotsresponse
                         let volumeSnapshots = response.snapshot
-                        if (response.count > this.keepSnapshots){                     
+                        if (response.count > this.keepSnapshots || forceDeleteAll){                     
                             volumeSnapshots.sort((b,a) => {
                                 return moment(a.created).diff(b.created)
                             })
                             let promises = []
-                            let snapshotsToRemove = volumeSnapshots.slice(this.keepSnapshots)
+                            let snapshotsToRemove = forceDeleteAll ? volumeSnapshots : volumeSnapshots.slice(this.keepSnapshots)
                             snapshotsToRemove.forEach(function(snapshot) {
                                 promises.push(this.removeSnapshot(snapshot))
                             }, this);
@@ -137,7 +191,20 @@ class ExoscaleSnapshotClient extends CloudStackClient {
                 success()
         })
     }
-    
+
+    listVirtualMachines(success){
+        this.execute('listVirtualMachines', {response: "json"}, (err, response) => {
+            if (err) {
+                return this.handleError(err)
+            }
+            if (response) {
+                response = response.listvirtualmachinesresponse
+                this.virtualMachines = response.virtualmachine
+            }
+            success()
+        });
+    }
+
     listSnapshots(success){
         this.execute('listSnapshots', {response:"json"}, (err, response) => {
             if(err){
@@ -151,9 +218,7 @@ class ExoscaleSnapshotClient extends CloudStackClient {
     createSnapshots(success){
         let promises = []
         this.volumes.forEach((volume) => {
-            if( !this.exclude.includes(volume.vmdisplayname)) {
-                promises.push(this.createSnapshot(volume));
-            }
+            promises.push(this.createSnapshot(volume));
         }, this);
 
         Promise.all(promises).then(()=>{
@@ -162,13 +227,11 @@ class ExoscaleSnapshotClient extends CloudStackClient {
             this.handleError(err)
         });
     }
-    
-    cleanSnapShots(success){
+
+    cleanSnapShots(forceDeleteAll, success) {
         let promises = []
         this.volumes.forEach((volume) => {
-            if( !this.exclude.includes(volume.vmdisplayname)) {
-                promises.push(this.cleanSnapshotForVolume(volume))
-            }
+            promises.push(this.cleanSnapshotForVolume(volume, forceDeleteAll))
         }, this);
         Promise.all(promises).then( (snapshotsToRemove) => {
             snapshotsToRemove.forEach(element => {
